@@ -2,6 +2,8 @@ import { FC } from 'react';
 import { Movie } from '../models/Movie';
 import { useState } from 'react';
 import { Box, Button, FormControl, FormLabel, Input, NumberDecrementStepper, NumberIncrementStepper, NumberInput, NumberInputField, NumberInputStepper, Textarea } from '@chakra-ui/react';
+import * as web3 from '@solana/web3.js'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 
 const MOVIE_REVIEW_PROGRAM_ID = 'CenYq6bDRB7p73EjsPEpiYN7uveyPUTdXkDkgUduboaN'
 
@@ -10,14 +12,64 @@ export const Form: FC = () => {
     const [rating, setRating] = useState(0)
     const [message, setMessage] = useState('')
 
+    const { connection } = useConnection()
+    const { publicKey, sendTransaction } = useWallet()
+
     const handleSubmit = (event: any) => {
         event.preventDefault()
         const movie = new Movie(title, rating, message)
         handleTransactionSubmit(movie)
+
+        
     }
 
     const handleTransactionSubmit = async (movie: Movie) => {
         console.log(JSON.stringify(movie))
+        // Check that publicKey exists to ensure that the user has connected their wallet.
+        if (!publicKey) {
+            alert('please connect your wallet!');
+            return;
+        };
+        // Call serialize() on movie to get a buffer representing the instruction data.
+        const buffer = movie.serialize();
+        // Create a new Transaction object.
+        const transaction = new web3.Transaction();
+        // Get all of the accounts that the transaction will read from or write to.
+        const [pda] = await web3.PublicKey.findProgramAddress(
+            [publicKey.toBuffer(), Buffer.from(movie.title)],
+            new web3.PublicKey(MOVIE_REVIEW_PROGRAM_ID)
+        )
+        // Create a new Instruction object that includes all of these accounts in the keys argument, includes the buffer in the data argument, and includes the program’s public key in the programId argument.
+        const instruction = new web3.TransactionInstruction({
+            keys: [
+                {
+                    pubkey: publicKey,
+                    isSigner: true,
+                    isWritable: false,
+                },
+                {
+                    pubkey: pda,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: web3.SystemProgram.programId ,
+                    isSigner: false,
+                    isWritable: false,
+                }
+            ],
+            data: buffer,
+            programId: new web3.PublicKey(MOVIE_REVIEW_PROGRAM_ID)
+        })
+        // Add the instruction from the last step to the transaction.
+        transaction.add(instruction)
+        // Call sendTransaction, passing in the assembled transaction.
+        try {
+            let txid = await sendTransaction(transaction, connection)
+            window.open(`https://explorer.solana.com/tx/${txid}?cluster=devnet`, "_blank")
+        } catch (e) {
+            alert(JSON.stringify(e))
+        }
     }
 
     return (
