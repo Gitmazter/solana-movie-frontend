@@ -19,8 +19,6 @@ export const Form: FC = () => {
         event.preventDefault()
         const movie = new Movie(title, rating, message)
         handleTransactionSubmit(movie)
-
-        
     }
 
     const handleTransactionSubmit = async (movie: Movie) => {
